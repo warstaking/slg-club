@@ -1,0 +1,102 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN" class="no-js">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="description" content="SLG Protocol 管理后台 · 用户查询" />
+<title>SLG Protocol · 用户查询</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23070a0a'/%3E%3Cpath d='M16 5 26 10.7v10.6L16 27 6 21.3V10.7z' fill='none' stroke='%23c9f56a' stroke-width='1.8'/%3E%3Cpath d='M16 12.4 20 16l-4 3.6L12 16z' fill='%23c9f56a'/%3E%3C/svg%3E" />
+<meta name="theme-color" content="#070a0a" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src https://bsc-dataseed.bnbchain.org https://bsc-dataseed1.bnbchain.org https://bsc-dataseed2.bnbchain.org https://bsc-dataseed3.bnbchain.org https://bsc-dataseed4.bnbchain.org https://bsc-dataseed2.defibit.io https://bsc-dataseed3.defibit.io https://bsc-dataseed4.defibit.io https://bsc.nodereal.io https://bsc-rpc.publicnode.com https://bsc-dataseed-public.bnbchain.org https://bsc-dataseed.nariox.org https://1rpc.io/bnb https://bsc.meowrpc.com https://rpc-bsc.48.club https://bsc.mytokenpocket.vip https://bsc-dataseed.defibit.io https://bsc-dataseed.ninicoin.io https://bsc-mainnet.public.blastapi.io; base-uri 'none'; form-action 'none'; object-src 'none'" />
+<link rel="stylesheet" href="admin.css" />
+<meta name="robots" content="noindex,nofollow" />
+</head>
+<body data-page="lookup">
+
+<div class="atmos" aria-hidden="true"></div>
+<div class="grain" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="wrap topbar-inner">
+    <a class="brand" href="index.html" aria-label="SLG Protocol">
+      <span class="brand-mark">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.7 20.7 7.6v8.8L12 21.3 3.3 16.4V7.6z"/><path class="solid" d="M12 7.4 15.9 12 12 16.6 8.1 12z"/></svg>
+      </span>
+      <span class="brand-text">SLG<em>ADMIN</em></span>
+    </a>
+    <nav class="nav">
+      <a href="index.html">概览</a>
+      <a href="params.html">质押</a>
+      <a href="levels.html">等级</a>
+      <a href="nodes.html">节点</a>
+      <a href="dividends.html">分红</a>
+      <a href="vault.html">金库</a>
+      <a href="oracle.html">价格</a>
+      <a href="funds.html">资金</a>
+      <a href="lookup.html" class="is-active">查询</a>
+    </nav>
+    <div class="wallet">
+      <span class="chain-pill" id="chainPill" title="当前网络"><i class="dot"></i><span id="chainName">BSC</span></span>
+      <button class="btn btn-ghost btn-sm" id="connectBtn" type="button">
+        <svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18a2 2 0 0 1 2 2v2H7a3 3 0 0 0 0 6h13v2a2 2 0 0 1-2 2H6.5A2.5 2.5 0 0 1 4 16.5v-9Z"/><circle cx="17" cy="12" r="1.4"/></svg>
+        <span id="connectBtnText">连接钱包</span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <section class="wrap page-head">
+    <div class="page-head-copy">
+      <span class="kicker"><i></i>ACCOUNT LOOKUP</span>
+      <h1>用户查询</h1>
+      <p>只读。核对订单、收益、出局线、级差、推荐关系与节点持仓。</p>
+    </div>
+    <div class="page-head-side">
+      <div class="head-metric"><span>权限</span><b id="hpRole">未连接</b></div>
+      <div class="head-metric"><span>质押人数</span><b id="lookupStakers">—</b></div>
+      <div class="head-metric"><span>版本</span><b id="hpVersion">—</b></div>
+    </div>
+  </section>
+
+  <section class="wrap section tight">
+    <div class="card">
+      <div class="panel-head">
+        <div><span class="eyebrow">ADDRESS</span><h3 class="card-title">输入用户地址</h3></div>
+      </div>
+      <div class="inline-row">
+        <input id="inLookup" type="text" placeholder="0x… 用户地址" autocomplete="off" spellcheck="false" />
+        <button class="btn btn-primary" id="btnLookup" type="button">查询</button>
+      </div>
+      <div class="data-list" id="lookupResult">
+        <div class="data-row"><span>状态</span><b>等待查询</b></div>
+      </div>
+    </div>
+  </section></main>
+
+<footer class="footer">
+  <div class="wrap footer-inner">
+    <div class="footer-brand">
+      <span class="brand-text">SLG<em>ADMIN</em></span>
+      <p>节点 · 质押 · 分红 · 运维</p>
+    </div>
+    <div class="footer-meta">
+      <span>Network <b>BSC Mainnet · 56</b></span>
+      <span>Build <b id="footerVersion">—</b></span>
+      <span>Public <b><a href="../index.html">前台</a></b></span>
+    </div>
+  </div>
+  <div class="wrap footer-bottom">
+    <span>© 2026 SLG Protocol. 管理操作不可撤销，请先核对参数。</span>
+    <span>本页面仅用于合约管理，不构成任何投资建议。</span>
+  </div>
+</footer>
+
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="true"></div>
+
+<script src="ethers.umd.min.js"></script>
+<script src="config.js?v=19"></script>
+<script src="admin.js?v=19"></script>
+</body>
+</html>
