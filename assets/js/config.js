@@ -1,45 +1,41 @@
-
+﻿
 window.SLG_CONFIG = {
   version: "v12",
   chainId: 56,
   chainName: "BSC Mainnet",
   explorer: "https://bscscan.com",
+  // Curated: no key required, deduped. The page probes these at startup and
+  // binds a FallbackProvider to only the fastest few, so order matters little.
   rpcUrls: [
-    'https://bsc.mytokenpocket.vip',        // TokenPocket 官方通道
-    'https://rpc-bsc.48.club',              // 48Club 国内节点
-    'https://bsc-dataseed.bnbchain.org',    // BNB Chain 官方 dataseed
+    'https://bsc-dataseed.bnbchain.org',    // BNB Chain 官方
+    'https://bsc-dataseed1.bnbchain.org',   // BNB Chain 官方 1
+    'https://bsc-dataseed2.bnbchain.org',   // BNB Chain 官方 2
+    'https://bsc-dataseed3.bnbchain.org',   // BNB Chain 官方 3
+    'https://bsc-dataseed4.bnbchain.org',   // BNB Chain 官方 4
     'https://bsc-dataseed2.defibit.io',     // 币安 defibit2
     'https://bsc-dataseed3.defibit.io',     // 币安 defibit3
     'https://bsc-dataseed4.defibit.io',     // 币安 defibit4
-  // ── 国际公共节点（故障转移池）──
-    'https://bsc-rpc.publicnode.com',
-    'https://bsc.publicnode.com',
+    'https://bsc.nodereal.io',              // NodeReal
+    'https://bsc-rpc.publicnode.com',       // PublicNode
     'https://bsc-dataseed-public.bnbchain.org',
-    'https://bsc.nodereal.io',
     'https://bsc-dataseed.nariox.org',
     'https://1rpc.io/bnb',
-    'https://bnb-mainnet.g.alchemy.com/public',
-    'https://bsc.api.pocket.network',
     'https://bsc.meowrpc.com',
-    'https://public-bsc.nownodes.io',
-    'https://bsc-mainnet.public.blastapi.io',
-    'https://bsc-dataseed1.bnbchain.org',
-    'https://bsc-dataseed2.bnbchain.org',
-    'https://bsc-dataseed3.bnbchain.org',
-    'https://bsc-dataseed4.bnbchain.org',
+    'https://rpc-bsc.48.club',              // 48Club 国内节点
+    'https://bsc.mytokenpocket.vip',        // TokenPocket 官方通道
     'https://bsc-dataseed.defibit.io',
-    'https://bsc-dataseed.ninicoin.io'
-    
-    
+    'https://bsc-dataseed.ninicoin.io',
+    'https://bsc-mainnet.public.blastapi.io'
   ],
   walletRpc: "https://bsc-dataseed.bnbchain.org",
   token: {
     slg: "0xdbb64ec2a453a612d0cc5001b6f15b0200000000",
     bni: "0x209e1c94a88318e2eae570bce87936589a90ffff",
-    // SLG.decimals() returns 0 on-chain, but the pool and PriceHub are seeded
-    // and priced in 18-decimal units (SLG_UNIT = 1e18). Never read decimals()
-    // for SLG; use this value for all amount formatting and parsing.
-    slgDecimals: 18,
+    // SLG is a 0-decimal token: decimals() == 0 and totalSupply == 1e33.
+    // Amounts are displayed in whole tokens, matching the wallet.
+    // PriceHub still quotes per 1e18 raw units (slgUnit = 1e18), so USD value
+    // stays raw * price / 1e18 and is independent of this display setting.
+    slgDecimals: 0,
     bniDecimals: 18
   },
   pancake: {

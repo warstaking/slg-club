@@ -15,7 +15,7 @@
     signer: null,
     account: null,
     chainId: null,
-    decimals: { slg: 18, bni: 18 },
+    decimals: { slg: 0, bni: 18 },
     prices: { slg: null, bnb: null, manual: false },
     node: null,
     pool: null,
@@ -236,6 +236,8 @@
   }
 
   function slgFromUsd(usdWei) {
+    // Oracle quotes to ~1e-8 USD/token; the result is rounded UP so the
+    // staked value never falls below the entered USD amount.
     const price = store.prices.slg;
     if (!price || price <= 0n) return null;
     return (usdWei * PRICE_UNIT + price - 1n) / price;
@@ -390,18 +392,54 @@
   }
 
 
-  function buildReadProvider() {
-    const entries = CFG.rpcUrls.map((url, i) => ({
+  function buildReadProvider(urls) {
+    const list = (urls && urls.length ? urls : CFG.rpcUrls).slice(0, 6);
+    const entries = list.map((url, i) => ({
       provider: new U.JsonRpcProvider(url, CFG.chainId, { staticNetwork: true }),
       priority: i + 1,
-      stallTimeout: 2500,
+      stallTimeout: 2000,
       weight: 1
     }));
     return new U.FallbackProvider(entries, CFG.chainId, { quorum: 1 });
   }
 
+  // Booting a FallbackProvider with many children makes the browser open
+  // every endpoint and keeps them all polled; on mobile that alone can eat
+  // tens of seconds before the first value renders. Probe all candidates in
+  // parallel instead, then bind to only the fastest few that answered.
+  async function probeRpcUrl(url) {
+    const started = performance.now();
+    try {
+      const res = await Promise.race([
+        fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_blockNumber", params: [] })
+        }).then((r) => r.json()),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 2500))
+      ]);
+      const ms = Math.round(performance.now() - started);
+      const ok = !!(res && !res.error && typeof res.result === "string" && /^0x[0-9a-f]+$/.test(res.result));
+      return { url, ok, ms };
+    } catch {
+      return { url, ok: false, ms: 9999 };
+    }
+  }
+
   async function pickReadProvider() {
-    const provider = buildReadProvider();
+    const urls = (CFG.rpcUrls || []).filter(Boolean);
+    let chosen = urls.slice(0, 4);
+    try {
+      const probed = await Promise.all(urls.map(probeRpcUrl));
+      const good = probed.filter((x) => x.ok).sort((a, b) => a.ms - b.ms);
+      if (good.length >= 2) {
+        chosen = good.slice(0, 4).map((x) => x.url);
+      } else if (good.length === 1) {
+        chosen = [good[0].url].concat(urls.filter((u) => u !== good[0].url).slice(0, 3));
+      }
+    } catch {
+    }
+    const provider = buildReadProvider(chosen);
     await withTimeout(provider.getBlockNumber(), 6000).catch(() => {});
     return provider;
   }
@@ -693,7 +731,7 @@
     // 18-decimal units. Reading decimals() here would scale every amount and
     // price by 1e18, so the configured unit is authoritative.
     const cfgSlg = Number(CFG.token && CFG.token.slgDecimals);
-    store.decimals.slg = Number.isFinite(cfgSlg) && cfgSlg >= 0 ? cfgSlg : 18;
+    store.decimals.slg = Number.isFinite(cfgSlg) && cfgSlg >= 0 ? cfgSlg : 0;
 
     const cfgBni = Number(CFG.token && CFG.token.bniDecimals);
     store.decimals.bni = Number.isFinite(cfgBni) && cfgBni >= 0 ? cfgBni : 18;
@@ -1294,6 +1332,17 @@
     setText("roundPending", "本轮待发 " + usd(store.user ? store.user.pendingUSD : 0n));
   }
 
+  // Round a raw SLG amount up to the 6th decimal place of the *display* unit.
+  // SLG has 0 decimals, so this rounds to a whole token; the oracle quote is
+  // far coarser than 18 decimals, so trailing digits below the display
+  // precision are fake precision that only confuses the number.
+  function roundUpToDisplayQuantum(slg) {
+    const dec = store.decimals.slg;
+    const places = Math.max(0, dec - 6);
+    const step = 10n ** BigInt(places);
+    return ((slg + step - 1n) / step) * step;
+  }
+
   function applyUsdShortcut() {
     const usdEl = $("usdInput");
     const amountInput = $("amountInput");
@@ -1311,11 +1360,12 @@
       return;
     }
 
+    const clean = roundUpToDisplayQuantum(slg);
     store.syncingUsd = true;
-    amountInput.value = slgInputText(slg);
+    amountInput.value = slgInputText(clean);
     store.syncingUsd = false;
     store.autoAmount = "";
-    setText("usdHint", "≈ " + fmtUnits(slg, store.decimals.slg, 2) + " SLG");
+    setText("usdHint", "≈ " + fmtUnits(slg, store.decimals.slg, 2) + " SLG（按实时价换算）");
     updateDerived();
   }
 
@@ -1326,7 +1376,7 @@
     const amount = parseAmount($("amountInput") ? $("amountInput").value : "");
     setText(
       "amountUsd",
-      amount !== null && p.slg ? "≈ " + usd(slgUsd(amount)) : "≈ $0.00"
+      amount !== null && p.slg ? "≈ " + usd(slgUsd(amount)) : "—"
     );
 
     const rateHint = $("usdRateHint");
@@ -1426,6 +1476,17 @@
     }
     store.refreshing = (async () => {
       await loadPublic();
+      // Public endpoints rate-limit; when the first pass leaves the page
+      // empty, re-probe for a different fast node and try again so values
+      // do not stay stuck at "—".
+      for (let attempt = 0; attempt < 2 && (!store.pool || !store.prices.slg); attempt++) {
+        await new Promise((r) => setTimeout(r, 1200 + attempt * 800));
+        try {
+          store.readProvider = await pickReadProvider();
+        } catch {
+        }
+        await loadPublic();
+      }
       if (store.account) await loadAccount();
     })();
     try {
@@ -1673,8 +1734,43 @@
   async function buyNode(kind) {
     if (store.busy) return;
     if (!(await ensureWallet())) return;
-    if (!store.node) await loadPublic();
-    await loadAccount();
+    if (skipLocalChecks()) {
+      // Mobile: the user is waiting for the wallet popup, so fetch only the
+      // values the transaction needs and let the dashboard load afterwards.
+      if (!store.node || !store.node.foundingPrice) {
+        const c = readContract("nodeProgram", "nodeProgram");
+        const r = await runLimited(
+          [
+            () => c.foundingPrice(),
+            () => c.coFounderPrice(),
+            () => c.foundingSold(),
+            () => c.coFounderSold(),
+            () => c.FOUNDING_SUPPLY(),
+            () => c.COFOUNDER_SUPPLY(),
+            () => c.salesPaused()
+          ],
+          4
+        );
+        if (!r[0] || r[0] === 0n) {
+          toast("error", "价格读取失败", "公共节点读取失败，请稍后重试。", 9000);
+          return;
+        }
+        store.node = {
+          foundingPrice: r[0],
+          coFounderPrice: r[1] || 0n,
+          foundingSold: num(r[2]),
+          coFounderSold: num(r[3]),
+          foundingSupply: num(r[4]) || 33,
+          coFounderSupply: num(r[5]) || 99,
+          salesPaused: !!r[6]
+        };
+      }
+      loadPublic().catch(() => {});
+      loadAccount().catch(() => {});
+    } else {
+      if (!store.node) await loadPublic();
+      await loadAccount();
+    }
     // Balances loaded at connect time go stale; a purchase must judge on the
     // wallet's current native BNB, not the cached value.
     if (store.account && store.user) {
