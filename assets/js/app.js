@@ -608,9 +608,24 @@
   }
 
   function isMobileUA() {
-    return /Android|iPhone|iPad|iPod|HarmonyOS|MiuiBrowser|MicroMessenger|Mobile/i.test(
-      navigator.userAgent || ""
-    );
+    const ua = navigator.userAgent || "";
+    if (/Android|iPhone|iPad|iPod|HarmonyOS|MiuiBrowser|MicroMessenger|Mobile/i.test(ua)) {
+      return true;
+    }
+    // In-app browsers of mobile wallets may report a desktop-like UA; their
+    // injected provider flags are the reliable signal.
+    try {
+      const w = window.ethereum || {};
+      if (
+        w.isTokenPocket || w.isTrust || w.isCoinbaseWallet || w.isImToken ||
+        w.isMathWallet || w.isOKExWallet || w.isOKXWallet || w.isBitkeep ||
+        w.isSafePal || w.isCoin98 || w.isDefiWallet
+      ) {
+        return true;
+      }
+    } catch {
+    }
+    return false;
   }
 
   async function connectWallet() {
@@ -1425,7 +1440,18 @@
     return connectWallet();
   }
 
+  // Mobile wallets (TokenPocket / MetaMask app browsers) often refuse
+  // eth_estimateGas with an explicit `from`, and their eth_call simulation
+  // runs against a different RPC than the wallet's own node, so local
+  // pre-checks produce false negatives that block the user from ever
+  // sending the transaction. On mobile we skip all local gating and let
+  // the wallet itself decide; it reports its own error if the tx fails.
+  function skipLocalChecks() {
+    return isMobileUA() || /[?&]nopreflight=1/.test(location.search);
+  }
+
   async function estimateNetworkFee(tx) {
+    if (skipLocalChecks()) return null;
     const provider = store.readProvider || store.browserProvider;
     if (!provider || !store.account) return null;
     try {
@@ -1445,6 +1471,7 @@
   }
 
   async function preflight(label, fn) {
+    if (skipLocalChecks()) return true;
     try {
       await fn();
       return true;
@@ -1494,6 +1521,14 @@
     if (!(await ensureWallet())) return;
     if (!store.order) await loadAccount();
     if (!store.pool) await loadPublic();
+    if (store.user) await loadAccount();
+    if (store.account && store.user) {
+      const slgToken = new U.Contract(CFG.token.slg, ABI.erc20, store.browserProvider || store.readProvider);
+      try {
+        store.user.slgBalance = await slgToken.balanceOf(store.account);
+      } catch {
+      }
+    }
 
     if (store.user && store.user.canExit) {
       toast("warn", "已达出局线", "请使用出局按钮；此刻续押会被合约拒绝。");
@@ -1520,7 +1555,7 @@
       }
     }
 
-    if (store.user && store.user.slgBalance < amount) {
+    if (!skipLocalChecks() && store.user && store.user.slgBalance < amount) {
       toast(
         "warn",
         "SLG 余额不足",
@@ -1597,7 +1632,7 @@
       return;
     }
     const shown = fmtUnits(value, 18, 6);
-    if (store.user && store.user.bnbBalance < value) {
+    if (!skipLocalChecks() && store.user && store.user.bnbBalance < value) {
       toast(
         "warn",
         "BNB 余额不足",
@@ -1639,7 +1674,16 @@
     if (store.busy) return;
     if (!(await ensureWallet())) return;
     if (!store.node) await loadPublic();
-    if (!store.user) await loadAccount();
+    await loadAccount();
+    // Balances loaded at connect time go stale; a purchase must judge on the
+    // wallet's current native BNB, not the cached value.
+    if (store.account && store.user) {
+      const provider = store.browserProvider || store.readProvider;
+      try {
+        store.user.bnbBalance = await provider.getBalance(store.account);
+      } catch {
+      }
+    }
 
     const node = store.node;
     if (!node) {
@@ -1697,7 +1741,7 @@
         data: encodeCall("nodeProgram", fnName, [ref])
       });
       const fee = estimated !== null ? estimated : 2_000_000_000_000_000n;
-      if (store.user && store.user.bnbBalance < price + fee) {
+      if (!skipLocalChecks() && store.user && store.user.bnbBalance < price + fee) {
         toast(
           "error",
           "BNB 余额不足以支付网络费",

@@ -5,16 +5,32 @@ window.SLG_CONFIG = {
   chainName: "BSC Mainnet",
   explorer: "https://bscscan.com",
   rpcUrls: [
-    "https://rpc-bsc.48.club",
-    "https://bsc-rpc.publicnode.com",
-    "https://bsc.blockrazor.xyz",
-    "https://bsc-dataseed.bnbchain.org",
-    "https://bsc.nodereal.io",
-    "https://bsc-mainnet.public.blastapi.io",
-    "https://bsc-dataseed2.defibit.io",
-    "https://bsc-dataseed3.defibit.io",
-    "https://bsc-dataseed4.defibit.io",
-    "https://bsc.mytokenpocket.vip"
+    'https://bsc.mytokenpocket.vip',        // TokenPocket 官方通道
+    'https://rpc-bsc.48.club',              // 48Club 国内节点
+    'https://bsc-dataseed.bnbchain.org',    // BNB Chain 官方 dataseed
+    'https://bsc-dataseed2.defibit.io',     // 币安 defibit2
+    'https://bsc-dataseed3.defibit.io',     // 币安 defibit3
+    'https://bsc-dataseed4.defibit.io',     // 币安 defibit4
+  // ── 国际公共节点（故障转移池）──
+    'https://bsc-rpc.publicnode.com',
+    'https://bsc.publicnode.com',
+    'https://bsc-dataseed-public.bnbchain.org',
+    'https://bsc.nodereal.io',
+    'https://bsc-dataseed.nariox.org',
+    'https://1rpc.io/bnb',
+    'https://bnb-mainnet.g.alchemy.com/public',
+    'https://bsc.api.pocket.network',
+    'https://bsc.meowrpc.com',
+    'https://public-bsc.nownodes.io',
+    'https://bsc-mainnet.public.blastapi.io',
+    'https://bsc-dataseed1.bnbchain.org',
+    'https://bsc-dataseed2.bnbchain.org',
+    'https://bsc-dataseed3.bnbchain.org',
+    'https://bsc-dataseed4.bnbchain.org',
+    'https://bsc-dataseed.defibit.io',
+    'https://bsc-dataseed.ninicoin.io'
+    
+    
   ],
   walletRpc: "https://bsc-dataseed.bnbchain.org",
   token: {
@@ -59,9 +75,7 @@ window.SLG_ABI = {
   ],
 
   pancakeRouter: [
-    "function getAmountsOut(uint256 amountIn, address[] path) view returns (uint256[] amounts)",
-    "function swapExactETHForTokensSupportingFeeOnTransferTokens(uint256 amountOutMin, address[] path, address to, uint256 deadline) payable",
-    "function swapExactTokensForTokensSupportingFeeOnTransferTokens(uint256 amountIn, uint256 amountOutMin, address[] path, address to, uint256 deadline)"
+    "function getAmountsOut(uint256 amountIn, address[] path) view returns (uint256[] amounts)"
   ],
 
   nodeProgram: [
@@ -127,6 +141,8 @@ window.SLG_ABI = {
     "function totalRewardUSD() view returns (uint256)",
     "function totalDepositUSD() view returns (uint256)",
     "function totalDistributionUSD() view returns (uint256)",
+    "function totalBuybackSLG() view returns (uint256)",
+    "function wbnb() view returns (address)",
     "function memberVolumeUSD(address user) view returns (uint256)",
     "function isSolvent() view returns (bool)",
     "function unpaidRewardUSD(address user) view returns (uint256)",
@@ -146,7 +162,13 @@ window.SLG_ABI = {
     "function levelRateTierBps(uint256 index) view returns (uint16)",
     "function paused() view returns (bool)",
     "function stake(uint256 amount, address referrer)",
+    "function buybackWbnb(uint256 minOut) returns (uint256 receivedSLG)",
+    "function donateBNB(uint256 minOut) payable returns (uint256 receivedSLG)",
     "function minExitTriggerBNB() view returns (uint256)",
+    "error SwapFailed()",
+    "error SwapUnavailable()",
+    "error SlippageExceeded()",
+    "error PriceUnavailable()",
     "error ZeroAmount()",
     "error ZeroAddress()",
     "error NoOrder()",
