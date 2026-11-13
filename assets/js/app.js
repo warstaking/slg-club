@@ -24,6 +24,7 @@
     levels: [],
     order: null,
     user: null,
+    accountError: false,
     tick: null,
     busy: false,
     autoAmount: "",
@@ -714,6 +715,7 @@
     store.browserProvider = null;
     store.order = null;
     store.user = null;
+    store.accountError = false;
     store.autoAmount = "";
     store.matureKey = null;
     renderWallet();
@@ -904,17 +906,15 @@
   }
 
 
-  async function loadAccount() {
-    if (!store.account || !store.browserProvider) return;
-    const pool = readContract("stakingPool", "stakingPool", store.browserProvider);
-    const node = readContract("nodeProgram", "nodeProgram", store.browserProvider);
-    const fd = readContract("foundingDividend", "nodeDividend", store.browserProvider);
-    const cd = readContract("coFounderDividend", "nodeDividend", store.browserProvider);
-    const slg = new U.Contract(CFG.token.slg, ABI.erc20, store.browserProvider);
-    const bni = new U.Contract(CFG.token.bni, ABI.erc20, store.browserProvider);
-    const acc = store.account;
+  async function readAccountWith(runner, acc) {
+    const pool = readContract("stakingPool", "stakingPool", runner);
+    const node = readContract("nodeProgram", "nodeProgram", runner);
+    const fd = readContract("foundingDividend", "nodeDividend", runner);
+    const cd = readContract("coFounderDividend", "nodeDividend", runner);
+    const slg = new U.Contract(CFG.token.slg, ABI.erc20, runner);
+    const bni = new U.Contract(CFG.token.bni, ABI.erc20, runner);
 
-    const r = await runLimited(
+    return runLimited(
       [
         () => pool.orders(acc),
         () => pool.isMature(acc),
@@ -935,12 +935,32 @@
         () => cd.pending(acc),
         () => node.foundingNodes(acc),
         () => node.coFounderNodes(acc),
-        () => store.browserProvider.getBalance(acc),
+        () => runner.getBalance(acc),
         () => pool.unpaidRewardUSD(acc),
         () => pool.isActiveStaker(acc)
       ],
       6
     );
+  }
+
+  async function loadAccount() {
+    if (!store.account) return;
+    // Position state is read-only. Try the probed public RPC first: wallet
+    // providers (mobile in-app browsers in particular) often reject or stall
+    // eth_call, which used to blank out every position field silently.
+    const acc = store.account;
+    const readers = [];
+    if (store.readProvider) readers.push(store.readProvider);
+    if (store.browserProvider && store.browserProvider !== store.readProvider) {
+      readers.push(store.browserProvider);
+    }
+    if (!readers.length) return;
+
+    let r = null;
+    for (let i = 0; i < readers.length; i++) {
+      r = await readAccountWith(readers[i], acc);
+      if (r[0] !== null) break;
+    }
 
     const [
       orderRaw, mature, canExit, pending, levelInfo, exitCap, capBase,
@@ -949,6 +969,11 @@
       foundingPending, coPending, foundingNodes, coNodes, bnbBalance,
       deferredUSD, activeStaker
     ] = r;
+
+    // orders() always returns a 9-field tuple, even for an address that never
+    // staked, so null here means every RPC attempt failed. Surface that
+    // instead of silently rendering "尚未入金" with empty fields.
+    store.accountError = orderRaw === null;
 
     store.order = orderRaw
       ? {
@@ -1168,6 +1193,7 @@
     const active = !!(order && order.active);
     const mature = !!(u && u.mature);
     const canExit = !!(u && u.canExit);
+    const readFailed = !!(acc && store.accountError);
 
     let title = "读取订单中…";
     let tag = "—";
@@ -1177,6 +1203,10 @@
     if (!acc) {
       title = "未连接钱包";
       tag = "只读";
+    } else if (readFailed) {
+      title = "链上读取失败";
+      tag = "重试";
+      tagCls = "warn";
     } else if (!active) {
       title = "尚未入金";
       tag = "未激活";
@@ -1208,7 +1238,9 @@
     const round = $("roundBlock");
     if (round) round.hidden = !(active && acc);
 
-    const stakeReady = !acc || ((!active || mature) && !(store.pool && store.pool.paused) && !canExit);
+    const stakeReady =
+      !acc ||
+      (!readFailed && (!active || mature) && !(store.pool && store.pool.paused) && !canExit);
     const btnStake = $("btnStake");
     if (btnStake) {
       btnStake.textContent = "质押（SLG）";
